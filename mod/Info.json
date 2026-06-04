@@ -1,0 +1,10 @@
+{
+  "Id": "KingmakerVN",
+  "DisplayName": "Vietnamese Translation (Việt hóa)",
+  "Author": "fanha",
+  "Version": "0.1.0",
+  "ManagerVersion": "0.23.0",
+  "Requirements": [],
+  "AssemblyName": "KingmakerVN.dll",
+  "EntryMethod": "KingmakerVN.Main.Load"
+}

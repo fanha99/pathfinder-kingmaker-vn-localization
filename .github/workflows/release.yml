@@ -1,0 +1,53 @@
+name: Release
+
+# Chi DONG GOI (khong compile) - DLL game co ban quyen khong commit/build len repo public.
+# Quy trinh:
+#   1. Build o may:  _viethoa\mod\build.bat  -> out\KingmakerVN\KingmakerVN.dll
+#   2. Copy DLL:     out\KingmakerVN\KingmakerVN.dll  =>  release-assets\KingmakerVN.dll  roi commit
+#   3. (Cap nhat ban dich) chay  vh.py build  de vnVN_pack.json moi nhat, commit
+#   4. Bump  mod\Info.json  Version  +  Repository.json  Version
+#   5. Push tag  vX.Y.Z  -> Action gom zip + tao GitHub Release
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:          # cho phep bam chay tay tu tab Actions
+
+permissions:
+  contents: write             # can de tao Release
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Kiem tra cac file da commit
+        shell: pwsh
+        run: |
+          if (-not (Test-Path release-assets/KingmakerVN.dll)) {
+            throw "Thieu release-assets/KingmakerVN.dll. Build o may (mod\build.bat) roi copy DLL vao day va commit truoc khi day tag."
+          }
+          if (-not (Test-Path vnVN_pack.json)) {
+            throw "Thieu vnVN_pack.json. Chay 'python vh.py build' roi commit truoc khi day tag."
+          }
+
+      - name: Dong goi zip
+        shell: pwsh
+        run: ./package_release.ps1 -Dll release-assets/KingmakerVN.dll
+
+      - name: Tao ban sao ten on dinh (cho UMM auto-update)
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem dist/KingmakerVN-*.zip | Select-Object -First 1
+          Copy-Item $zip.FullName dist/KingmakerVN.zip -Force
+          Write-Host "Assets:"; Get-ChildItem dist/*.zip | ForEach-Object { Write-Host "  $($_.Name)" }
+
+      - name: Tao GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/KingmakerVN-*.zip
+            dist/KingmakerVN.zip
+          generate_release_notes: true
