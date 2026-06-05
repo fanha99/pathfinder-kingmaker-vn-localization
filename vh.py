@@ -13,7 +13,7 @@ Subcommands:
   stats            Bao cao tien do.
   validate         Kiem tra lai toan bo tag parity trong tm.json.
 """
-import os, sys, json, glob, re, io
+import os, sys, json, glob, re, io, shutil
 
 BASE = os.path.dirname(os.path.abspath(__file__))          # ..._viethoa
 LOC  = os.path.dirname(BASE)                                # Localization
@@ -37,8 +37,14 @@ def read_json(path):
         return json.load(f)
 
 def write_json(path, obj, indent=2):
-    with io.open(path, "w", encoding="utf-8") as f:
+    # Ghi kieu nguyen-tu: ghi ra file .tmp roi os.replace. Neu hong giua chung
+    # (mat dien, crash) thi file goc van nguyen ven, khong bi cut/hong.
+    tmp = path + ".tmp"
+    with io.open(tmp, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=indent)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)   # nguyen-tu tren cung o dia (ca Windows)
 
 def load_tm():
     if os.path.exists(TM_PATH):
@@ -96,7 +102,7 @@ def ensure_index():
     return read_json(INDEX_PATH)
 
 # ---------------------------------------------------------------- next
-def cmd_next(n=300):
+def cmd_next(n=150):
     idx = ensure_index()
     tm = load_tm()
     freq = idx["freq"]
@@ -118,13 +124,35 @@ def cmd_next(n=300):
 def cmd_merge():
     if not os.path.exists(BATCH_OUT):
         print("[merge] khong thay batch_out.json"); return
-    bin_ = read_json(BATCH_IN)
-    bout = read_json(BATCH_OUT)
+    try:
+        bin_ = read_json(BATCH_IN)
+    except Exception as e:
+        print("[merge] LOI doc batch_in.json: %s -> bo qua, khong dong gi." % e); return
+    try:
+        bout = read_json(BATCH_OUT)
+    except Exception as e:
+        print("[merge] LOI doc batch_out.json (hong / khong phai JSON hop le): %s" % e)
+        print("        -> KHONG merge, KHONG dong gi. Sua batch_out.json roi merge lai, hoac dich lai me nay.")
+        return
+    if isinstance(bout, list):
+        if len(bout) == 0:
+            print("[merge] batch_out rong, khong co gi de merge."); return
+        print("[merge] batch_out sai dinh dang (can object {\"i\": \"vi\"}, gap list)."); return
+    if not isinstance(bout, dict):
+        print("[merge] batch_out sai dinh dang (can object {\"i\": \"vi\"})."); return
     en_by_i = {b["i"]: b["en"] for b in bin_}
     tm = load_tm()
+    # Backup tm.json truoc khi ghi de -> co the khoi phuc 1 buoc neu hong.
+    if os.path.exists(TM_PATH):
+        try: shutil.copy2(TM_PATH, TM_PATH + ".bak")
+        except Exception: pass
     ok = 0; rejects = []
     for k, vi in bout.items():
-        i = int(k)
+        try:
+            i = int(k)
+        except (ValueError, TypeError):
+            rejects.append({"i": k, "reason": "key khong phai so", "vi": vi})
+            continue
         en = en_by_i.get(i)
         if en is None:
             rejects.append({"i": i, "reason": "id khong co trong batch_in", "vi": vi})
@@ -140,9 +168,14 @@ def cmd_merge():
         ok += 1
     write_json(TM_PATH, tm)
     write_json(REJECTS, rejects)
+    # LUON xoa batch_out sau merge: da nhan -> tm.json, bi tu choi -> batch_rejects.json (giu en goc).
+    # Tranh du lieu me cu con sot lai, lan sau index 'i' danh lai tu 0 se gan nham vi vao en khac.
+    write_json(BATCH_OUT, [])
     print("[merge] nhan=%d  tu_choi=%d  tm_total=%d" % (ok, len(rejects), len(tm)))
+    if ok == 0 and rejects and all(str(r.get("reason", "")).startswith("id khong") for r in rejects):
+        print("        !! CANH BAO: batch_out co ve la DU LIEU ME CU (index 'i' khong khop batch_in). Khong co chuoi nao duoc nhan.")
     if rejects:
-        print("        -> xem batch_rejects.json de sua va dua lai vao batch_out.json")
+        print("        -> xem batch_rejects.json (giu en goc) de dich lai o me ke tiep")
 
 # ---------------------------------------------------------------- build (mod mode - MAC DINH)
 def cmd_build(only_complete=False):
@@ -228,16 +261,28 @@ def cmd_stats():
     print("Theo lan dung  : %d/%d  (%.2f%%)" % (occ_done, occ_total, pct(occ_done, occ_total)))
     print("Theo ky tu     : %d/%d  (%.2f%%)" % (ch_done, ch_total, pct(ch_done, ch_total)))
 
+# ---------------------------------------------------------------- pending
+def cmd_pending():
+    """In DUY NHAT so chuoi duy nhat con lai chua dich (cho script vong lap doc).
+    Exit code 0 neu con viec, 1 neu da xong het (de '&&' trong shell tu dung)."""
+    idx = ensure_index()
+    tm = load_tm()
+    n = sum(1 for en in idx["freq"] if en not in tm)
+    print(n)
+    return n
+
 def main():
     args = sys.argv[1:]
     cmd = args[0] if args else "stats"
     if cmd == "index":   cmd_index()
-    elif cmd == "next":  cmd_next(int(args[1]) if len(args) > 1 else 300)
+    elif cmd == "next":  cmd_next(int(args[1]) if len(args) > 1 else 150)
     elif cmd == "merge": cmd_merge()
     elif cmd == "build": cmd_build(only_complete=("--complete" in args))
     elif cmd == "buildfiles": cmd_build_files(only_complete=("--complete" in args))
     elif cmd == "pack":  cmd_pack()
     elif cmd == "stats": cmd_stats()
+    elif cmd == "pending":
+        n = cmd_pending(); sys.exit(0 if n > 0 else 1)
     elif cmd == "validate":
         tm = load_tm(); bad = 0
         for en, vi in tm.items():
