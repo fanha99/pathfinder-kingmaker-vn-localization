@@ -7,7 +7,7 @@ khu trung lap va dam bao nhat quan xuyen suot.
 
 Subcommands:
   index            Quet toan bo file enGB, dung index cac chuoi duy nhat.
-  next [N]         Lay N chuoi chua dich tiep theo -> batch_in.json
+  next [N] [CHARS] Lay toi da N chuoi chua dich (va <= CHARS ky tu neu CHARS>0) -> batch_in.json
   merge            Gop batch_out.json vao tm.json (co kiem tra tag).
   build            Sinh/ cap nhat cac file vnVN tu enGB + tm.json.
   stats            Bao cao tien do.
@@ -102,7 +102,7 @@ def ensure_index():
     return read_json(INDEX_PATH)
 
 # ---------------------------------------------------------------- next
-def cmd_next(n=150):
+def cmd_next(n=150, maxchars=0):
     idx = ensure_index()
     tm = load_tm()
     freq = idx["freq"]
@@ -112,10 +112,17 @@ def cmd_next(n=150):
     def sortkey(en):
         return (0 if en in main else 1, -freq[en], len(en), en)
     pending.sort(key=sortkey)
-    batch = [{"i": k, "en": en} for k, en in enumerate(pending[:n])]
+    # Cat batch theo CA HAI nguong: toi da n chuoi VA toi da maxchars ky tu
+    # (maxchars=0 -> tat nguong ky tu). Luon lay it nhat 1 chuoi de khong ket vong lap.
+    picked, chars = [], 0
+    for en in pending[:n]:
+        if maxchars > 0 and picked and chars + len(en) > maxchars:
+            break
+        picked.append(en); chars += len(en)
+    batch = [{"i": k, "en": en} for k, en in enumerate(picked)]
     write_json(BATCH_IN, batch)
-    print("[next] pending_total=%d  batch=%d -> %s" %
-          (len(pending), len(batch), BATCH_IN))
+    print("[next] pending_total=%d  batch=%d  ky_tu=%d -> %s" %
+          (len(pending), len(batch), chars, BATCH_IN))
     if batch:
         nmain = sum(1 for b in batch if b["en"] in main)
         print("       (trong batch: %d thuoc UI chinh)" % nmain)
@@ -275,7 +282,10 @@ def main():
     args = sys.argv[1:]
     cmd = args[0] if args else "stats"
     if cmd == "index":   cmd_index()
-    elif cmd == "next":  cmd_next(int(args[1]) if len(args) > 1 else 150)
+    elif cmd == "next":
+        n  = int(args[1]) if len(args) > 1 else 150
+        mc = int(args[2]) if len(args) > 2 else 0
+        cmd_next(n, mc)
     elif cmd == "merge": cmd_merge()
     elif cmd == "build": cmd_build(only_complete=("--complete" in args))
     elif cmd == "buildfiles": cmd_build_files(only_complete=("--complete" in args))
