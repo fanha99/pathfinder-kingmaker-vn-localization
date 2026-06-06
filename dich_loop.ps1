@@ -19,14 +19,14 @@
   'next' chon lai o vong sau de dich lai (khong can buoc sua-trong-phien nua).
 
   Cach chay:
-    pwsh -File _viethoa\dich_loop.ps1                       # chay den khi dich xong het
-    pwsh -File _viethoa\dich_loop.ps1 -MaxRuns 5            # chi chay 5 vong
-    pwsh -File _viethoa\dich_loop.ps1 -Chunk 150 -MaxChars 30000   # doi co chunk
-    pwsh -File _viethoa\dich_loop.ps1 -Model claude-opus-4-8       # doi model (mac dinh Sonnet)
+    pwsh -File dich_loop.ps1                       # chay den khi dich xong het
+    pwsh -File dich_loop.ps1 -MaxRuns 2            # chi chay 2 vong
+    pwsh -File dich_loop.ps1 -Chunk 150 -MaxChars 30000   # doi co chunk
+    pwsh -File dich_loop.ps1 -Model claude-opus-4-8       # doi model (mac dinh Sonnet)
 #>
 param(
     [int]$Chunk    = 150,                 # so chuoi toi da moi chunk
-    [int]$MaxChars = 30000,               # tran ky tu moi chunk (0 = tat); chan chunk qua dai
+    [int]$MaxChars = 20000,               # tran ky tu moi chunk (0 = tat); chan chunk qua dai
     [int]$MaxRuns  = 0,                    # so vong toi da; 0 = chay den khi dich xong het
     [string]$Model = "claude-sonnet-4-6"  # model cho phien dich (Sonnet re hon Opus nhieu lan)
 )
