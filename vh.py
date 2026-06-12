@@ -10,6 +10,8 @@ Subcommands:
   next [N] [CHARS] Lay toi da N chuoi chua dich (va <= CHARS ky tu neu CHARS>0) -> batch_in.json
   merge            Gop batch_out.json vao tm.json (co kiem tra tag).
   build            Sinh/ cap nhat cac file vnVN tu enGB + tm.json.
+  buildvn          Sinh 1 file locale day du _viethoa/vnVN.json (kieu ghi de,
+                   da dich=Viet, chua=English) - KHONG ghi vao folder Localization.
   stats            Bao cao tien do.
   validate         Kiem tra lai toan bo tag parity trong tm.json.
 """
@@ -19,6 +21,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))          # ..._viethoa
 LOC  = os.path.dirname(BASE)                                # Localization
 TM_PATH      = os.path.join(BASE, "tm.json")
 PACK_PATH    = os.path.join(BASE, "vnVN_pack.json")   # goi guid->text (FULL: da dich=Viet, chua=English) cho mod UMM KingmakerVN
+VNVN_PATH    = os.path.join(BASE, "vnVN.json")        # 1 file locale day du (kieu ghi de), ghi vao _viethoa (KHONG ghi vao Localization)
 INDEX_PATH   = os.path.join(BASE, "index.json")
 BATCH_IN     = os.path.join(BASE, "batch_in.json")
 BATCH_OUT    = os.path.join(BASE, "batch_out.json")
@@ -250,6 +253,35 @@ def cmd_pack():
     write_json(PACK_PATH, pack)
     print("[pack] da ghi %d chuoi (full, fallback English) -> %s" % (len(pack), os.path.basename(PACK_PATH)))
 
+# ---------------------------------------------------------------- buildvn (1 file locale day du -> _viethoa/vnVN.json)
+def cmd_build_vn():
+    """Sinh DUY NHAT 1 file locale tieng Viet day du theo kieu GHI DE
+    (cung dinh dang voi enGB.json: {"$id":..,"strings":[{Key,Value}]}).
+    Gop MOI chuoi cua TAT CA file enGB lai (theo Key/guid duy nhat); da dich ->
+    tieng Viet, chua dich -> English fallback. GHI VAO _viethoa/vnVN.json,
+    KHONG ghi vao folder Localization."""
+    tm = load_tm()
+    strings = []
+    seen = set()          # Key da xuat -> tranh trung guid giua cac file
+    trans = 0
+    for fp in src_files():
+        for s in read_json(fp).get("strings", []):
+            en  = s.get("Value", "")
+            key = s.get("Key", "")
+            if not key or en is None or en.strip() == "":
+                continue
+            if key in seen:
+                continue
+            seen.add(key)
+            vi = tm.get(en, en)
+            if en in tm:
+                trans += 1
+            strings.append({"Key": key, "Value": vi})
+    out = {"$id": "1", "strings": strings}
+    write_json(VNVN_PATH, out)
+    print("[buildvn] da ghi %d chuoi (%d da dich) -> %s" %
+          (len(strings), trans, os.path.basename(VNVN_PATH)))
+
 # ---------------------------------------------------------------- stats
 def cmd_stats():
     idx = ensure_index()
@@ -289,6 +321,7 @@ def main():
     elif cmd == "merge": cmd_merge()
     elif cmd == "build": cmd_build(only_complete=("--complete" in args))
     elif cmd == "buildfiles": cmd_build_files(only_complete=("--complete" in args))
+    elif cmd == "buildvn": cmd_build_vn()
     elif cmd == "pack":  cmd_pack()
     elif cmd == "stats": cmd_stats()
     elif cmd == "pending":
