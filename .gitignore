@@ -1,0 +1,15 @@
+# San pham build cuc bo (khong commit)
+/out/
+/dist/
+
+# Cache Python
+__pycache__/
+*.pyc
+
+# File lam viec tam cua quy trinh dich
+/batch_in.json
+/batch_out.json
+/batch_rejects.json
+/tm.json.bak
+/tm_backup/
+*.tmp
