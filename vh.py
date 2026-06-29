@@ -138,6 +138,9 @@ def cmd_merge():
         bin_ = read_json(BATCH_IN)
     except Exception as e:
         print("[merge] LOI doc batch_in.json: %s -> bo qua, khong dong gi." % e); return
+    if not os.path.exists(BATCH_OUT):
+        print("[merge] khong co batch_out.json (da bi xoa sau lan merge truoc, hoac chua dich).")
+        print("        -> dich ra batch_out.json roi merge lai."); return
     try:
         bout = read_json(BATCH_OUT)
     except Exception as e:
@@ -178,9 +181,11 @@ def cmd_merge():
         ok += 1
     write_json(TM_PATH, tm)
     write_json(REJECTS, rejects)
-    # LUON xoa batch_out sau merge: da nhan -> tm.json, bi tu choi -> batch_rejects.json (giu en goc).
+    # LUON xoa han file batch_out sau merge: da nhan -> tm.json, bi tu choi -> batch_rejects.json (giu en goc).
     # Tranh du lieu me cu con sot lai, lan sau index 'i' danh lai tu 0 se gan nham vi vao en khac.
-    write_json(BATCH_OUT, [])
+    if os.path.exists(BATCH_OUT):
+        try: os.remove(BATCH_OUT)
+        except Exception: pass
     print("[merge] nhan=%d  tu_choi=%d  tm_total=%d" % (ok, len(rejects), len(tm)))
     if ok == 0 and rejects and all(str(r.get("reason", "")).startswith("id khong") for r in rejects):
         print("        !! CANH BAO: batch_out co ve la DU LIEU ME CU (index 'i' khong khop batch_in). Khong co chuoi nao duoc nhan.")
